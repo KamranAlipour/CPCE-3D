@@ -1,7 +1,7 @@
 
 import tensorflow as tf
 import numpy as np
-import cPickle as pickle
+import pickle #import cPickle as pickle
 
 # Convert 2D ckpt model to 3D numpy
 def ckpt_to_numpy(checkpoint_dir, save_name = 'tmp_generate_weight', depth=3):
@@ -22,7 +22,7 @@ def ckpt_to_numpy(checkpoint_dir, save_name = 'tmp_generate_weight', depth=3):
         d = np.array([b,a,b])
         weights[v_names[i]] = d
     for i in v_names:
-        print i, weights[i].shape
+        print (i, weights[i].shape)
     pickle.dump(weights, open(save_name, 'w'))
     return save_name
 

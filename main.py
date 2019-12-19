@@ -7,14 +7,19 @@ import h5py
 import os
 from sklearn.utils import shuffle
 from util import *
+import logging
+
+from data_processor import bkgdGen, gen_train_batch_bg, get1batch4test
+
+logging.basicConfig(filename='training.log', level=logging.INFO)
 
 os.environ['CUDA_VISIBLE_DEVICES']='0'
 
-input_width = 64
-input_height = 64
+input_width = 256
+input_height = 256
 
-output_width = 64
-output_height = 64
+output_width = 256
+output_height = 256
 
 batch_size = 128
 
@@ -27,11 +32,21 @@ Mode = '3D'
 
 Methodname='CPCE_3D'
 lambda_p = 0.1
-in_depth = 9
+in_depth = 1
 Networkfolder = Methodname
 is_transfer_learning = False
 
 ###################################################
+
+xtrain = 'npy_frames_split_1024_train/input_*'
+ytrain = 'npy_frames_split_1024_train/target_*'
+img_size = 1024
+
+# build minibatch data generator with prefetch
+mb_data_iter = bkgdGen(data_generator=gen_train_batch_bg(x_fn=xtrain, \
+                                                         y_fn=ytrain, mb_size=input_width, \
+                                                         in_depth=in_depth, img_size=img_size), \
+                                                         max_prefetch=16)
    
 # Generator
 X = tf.placeholder(dtype=tf.float32, shape=[batch_size, in_depth, input_width, input_height, 1])
@@ -105,8 +120,13 @@ sess = tf.Session()
 sess.run(tf.global_variables_initializer())
 
 # load vgg weights
-print "Initialize VGG network ... "
-weights = np.load('/Your/path/to/vgg19.npy', encoding='latin1').item()
+print ("Initialize VGG network ... ")
+
+# modify the default parameters of np.load
+np_load_old = np.load
+np.load = lambda *a,**k: np_load_old(*a, allow_pickle=True, **k)
+
+weights = np.load('vgg19.npy', encoding='latin1').item()
 keys = sorted(weights.keys())
 layers = ['conv1_1', 'conv1_2', 'conv2_1', 'conv2_2',
         'conv3_1', 'conv3_2', 'conv3_3', 'conv3_4',
@@ -114,11 +134,11 @@ layers = ['conv1_1', 'conv1_2', 'conv2_1', 'conv2_2',
         'conv5_1', 'conv5_2', 'conv5_3', 'conv5_4']
 
 for i, k in enumerate(layers):
-    print i, k, weights[k][0].shape, weights[k][1].shape
+    print (i, k, weights[k][0].shape, weights[k][1].shape)
     sess.run(vgg_params[2*i].assign(weights[k][0]))
     sess.run(vgg_params[2*i+1].assign(weights[k][1]))
 
-num_epoch = 40
+num_epoch = 40000
 disc_iters = 4 
 start_epoch = 0
 learning_rate = 1e-4
@@ -127,14 +147,14 @@ saver = tf.train.Saver()
 
 
 if is_transfer_learning:
-    print "Making 3D weights from 2D"
+    logging.info("Making 3D weights from 2D")
     start_epoch = 10
     num_epoch += start_epoch 
     learning_rate = 5e-4 
     model_2D = "/Networks/CPCE_2D/CPCE_2D_" + str(start_epoch-1) +  ".ckpt" # 2D model at epoch 10.
     generate_weight = ckpt_to_numpy(model_2D, save_name='weights/'+Networkfolder,depth=in_depth)
 
-    print "Loading 3D weights"
+    logging.info("Loading 3D weights")
 
     g_weights = pickle.load(open(generate_weight, 'r'))
     v_names = ['conv1', 'conv2', 'conv3', 'conv4', 'deconv5', 'transpose1', 'deconv6', 'transpose2', 'deconv7', 'transpose3', 'deconv8']
@@ -142,45 +162,47 @@ if is_transfer_learning:
         sess.run(gen_params[i].assign(g_weights[v_names[i]]))
 
 
-print "Loading data"
-f = h5py.File('/Your/path/to/training_data.h5', 'r')
-data, label = np.array(f['data']), np.array(f['label'])
-f.close()
+#logging.info("Loading data")
+#f = h5py.File('/Your/path/to/training_data.h5', 'r')
+#data, label = np.array(f['data']), np.array(f['label'])
+#f.close()
 
-print "Start training ... "
+logging.info("Start training ... ")
 
-for iteration in xrange(start_epoch, num_epoch):
+for iteration in range(start_epoch, num_epoch):
 
-    val_lr = learning_rate / (iteration + 1)
-    data, label = shuffle(data, label)
-    num_batches = data.shape[0] // batch_size
+    val_lr = learning_rate / (iteration // 1000 + 1)
+    X_mb, y_mb = mb_data_iter.next()
+    #data, label = shuffle(data, label)
+    #num_batches = data.shape[0] // batch_size
     
-    i = 0
-    for i in xrange(num_batches):
+    #i = 0
+    #for i in xrange(num_batches):
         
-        # discriminator
-        for j in xrange(disc_iters):
-            idx = np.random.permutation(data.shape[0])
-            batch_data = data[idx[:batch_size]]   
-            batch_label = label[idx[:batch_size]] 
-            sess.run([disc_train_op], feed_dict={real_data: normalize_y(batch_label),
-                                                         X: normalize_x(batch_data, in_depth=in_depth),
-                                                        lr: val_lr})
+    # discriminator
+    for j in range(disc_iters):
+        idx = np.random.permutation(data.shape[0])
+        X_mb_disc, y_mb_disc = mb_data_iter.next()
+        batch_data = X_mb_disc #data[idx[:batch_size]]   
+        batch_label = y_mb_disc #label[idx[:batch_size]] 
+        sess.run([disc_train_op], feed_dict={real_data: normalize_y(batch_label),
+                                                    X: normalize_x(batch_data, in_depth=in_depth),
+                                                    lr: val_lr})
 
-        batch_data = data[i*batch_size : (i+1)*batch_size]
-        batch_label = label[i*batch_size : (i+1)*batch_size]
+    batch_data = X_mb #data[i*batch_size : (i+1)*batch_size]
+    batch_label = y_mb #label[i*batch_size : (i+1)*batch_size]
 
-        # generator
-        _disc_loss, _vgg_cost, _mse_cost, _gen_loss, _gen_cost, _ = sess.run([disc_loss, vgg_cost, mse_cost, 
-                                                         gen_loss, gen_cost, gen_train_op], 
-                                                        feed_dict={real_data: normalize_y(batch_label),
-                                                                           X: normalize_x(batch_data, in_depth),
-                                                                          lr: val_lr})
-                                                        
-        print('Epoch: %d  - %d - disc_loss: %.6f - gen_loss: %.6f - vgg_loss: %.6f  - mse_loss: %.6f'%(
-        iteration, i, _disc_loss , _gen_loss, _vgg_cost, _mse_cost )) 
-
-    saver.save(sess, './Networks/'+ Networkfolder +'/CPCE-3D'+ repr(iteration) + '.ckpt')
+    # generator
+    _disc_loss, _vgg_cost, _mse_cost, _gen_loss, _gen_cost, _ = sess.run([disc_loss, vgg_cost, mse_cost, 
+                                                     gen_loss, gen_cost, gen_train_op], 
+                                                    feed_dict={real_data: normalize_y(batch_label),
+                                                                       X: normalize_x(batch_data, in_depth),
+                                                                      lr: val_lr})
+                                                    
+    logging.info('Epoch: %d  - %d - disc_loss: %.6f - gen_loss: %.6f - vgg_loss: %.6f  - mse_loss: %.6f'%(
+    iteration, i, _disc_loss , _gen_loss, _vgg_cost, _mse_cost )) 
+    if (itertaion % 1000 == 0):
+        saver.save(sess, './Networks/'+ Networkfolder +'/CPCE-3D'+ repr(iteration) + '.ckpt')
                 
 sess.close()
 

@@ -74,7 +74,7 @@ def CPCE_3D(inputs, padding='valid'):
     outputs5 = tf.layers.conv2d_transpose(outputs5, 32, 3, padding=padding, kernel_initializer=tf.contrib.layers.xavier_initializer(), name='deconv5', use_bias=False)
 
     if len(outputs3.shape) == 5:
-        outputs5 = tf.concat([outputs3[:, outputs3.shape[1]/2, :, :, :], outputs5], 3)
+        outputs5 = tf.concat([outputs3[:, int(int(outputs3.shape[1])/2), :, :, :], outputs5], 3)
     else:
         outputs5 = tf.concat([outputs3, outputs5], 3)
     outputs5 = tf.nn.relu(outputs5)
@@ -84,7 +84,7 @@ def CPCE_3D(inputs, padding='valid'):
 
     outputs6 = tf.layers.conv2d_transpose(outputs6, 32, 3, padding=padding, kernel_initializer=tf.contrib.layers.xavier_initializer(), name='deconv6', use_bias=False)
     if len(outputs2.shape) == 5:
-        outputs6 = tf.concat([outputs2[:, outputs2.shape[1]/2, :, :, :], outputs6], 3)
+        outputs6 = tf.concat([outputs2[:, int(int(outputs2.shape[1])/2), :, :, :], outputs6], 3)
     else:
         outputs6 = tf.concat([outputs2, outputs6], 3)
     outputs6 = tf.nn.relu(outputs6)
@@ -94,7 +94,7 @@ def CPCE_3D(inputs, padding='valid'):
 
     outputs7 = tf.layers.conv2d_transpose(outputs7, 32, 3, padding=padding, kernel_initializer=tf.contrib.layers.xavier_initializer(), name='deconv7', use_bias=False)
     if len(outputs1.shape) == 5:
-        outputs7 = tf.concat([outputs1[:, outputs1.shape[1]/2, :, :, :], outputs7], 3)
+        outputs7 = tf.concat([outputs1[:, int(int(outputs1.shape[1])/2), :, :, :], outputs7], 3)
     else:
         outputs7 = tf.concat([outputs1, outputs7], 3)
     outputs7 = tf.nn.relu(outputs7)
