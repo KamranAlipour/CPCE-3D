@@ -53,4 +53,22 @@ shanh at rpi dot edu
 Any discussions, suggestions and questions are welcome!
 
 
+## PhotoAcoustic Data
 
+Download the data from [Data](https://drive.google.com/open?id=1NfRXjceqoCdC3V0nNC4czt7lMJ70hnpP)
+after extracting the files, you should get the following folders in the root:
+```
+.\frames_split_1024_test
+.\frames_split_1024_train
+```
+Then use the python scripts
+```
+frame2npy_train.py
+frame2npy_test.py
+```
+To turn this data to .npy format:
+
+```
+.\npy_frames_split_1024_test
+.\npy_frames_split_1024_train
+```
