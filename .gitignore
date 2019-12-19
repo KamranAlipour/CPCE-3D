@@ -1,0 +1,9 @@
+__pycache__/
+dataset/
+vgg19.npy
+npy_img/
+npy_frames_split_1024_test/
+npy_frames_split_1024_train/
+frames_split_1024_test/
+frames_split_1024_train/
+*.log
